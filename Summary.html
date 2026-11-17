@@ -1,0 +1,1432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inkwell — Technical Deep Dive</title>
+  <style>
+    :root {
+      --bg:        #0a0a12;
+      --bg2:       #0f0f1a;
+      --bg3:       #1a1a2e;
+      --border:    #33334d;
+      --accent:    #818cf8;
+      --accent2:   #a5b4fc;
+      --blue:      #60a5fa;
+      --yellow:    #fbbf24;
+      --red:       #f87171;
+      --purple:    #c084fc;
+      --text:      #e2e8f0;
+      --muted:     #94a3b8;
+      --code-bg:   #0d1117;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    /* ── Layout ── */
+    .layout { display: flex; min-height: 100vh; }
+
+    nav {
+      width: 260px;
+      min-width: 260px;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      padding: 24px 0;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    nav .nav-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      padding: 0 20px 12px;
+    }
+
+    nav a {
+      display: block;
+      padding: 7px 20px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 13px;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+    }
+
+    nav a:hover, nav a.active {
+      color: var(--text);
+      border-left-color: var(--accent);
+      background: rgba(129,140,248,0.08);
+    }
+
+    nav .nav-section {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--border);
+      padding: 18px 20px 6px;
+    }
+
+    main {
+      flex: 1;
+      padding: 48px 56px;
+      max-width: 960px;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(135deg, #1a1330, #171a30, #0f0f1a);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px;
+      margin-bottom: 48px;
+    }
+
+    .hero h1 {
+      font-size: 32px;
+      font-weight: 800;
+      background: linear-gradient(90deg, var(--accent), var(--blue));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+
+    .hero p { color: var(--muted); font-size: 15px; }
+
+    .hero-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+
+    .tag {
+      background: rgba(129,140,248,0.12);
+      border: 1px solid rgba(129,140,248,0.28);
+      color: var(--accent2);
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* ── Sections ── */
+    section { margin-bottom: 56px; scroll-margin-top: 24px; }
+
+    h2 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #fff;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+      margin-bottom: 24px;
+    }
+
+    h3 {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--accent2);
+      margin: 28px 0 12px;
+    }
+
+    h4 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--blue);
+      margin: 20px 0 8px;
+    }
+
+    p { color: var(--muted); margin-bottom: 12px; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 16px;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+
+    /* ── Code ── */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 20px;
+      overflow-x: auto;
+      margin: 16px 0;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    code {
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      color: #e2e8f0;
+    }
+
+    pre code { color: #e2e8f0; }
+
+    .kw  { color: #c792ea; }
+    .str { color: #c3e88d; }
+    .fn  { color: #82aaff; }
+    .cm  { color: #546e7a; font-style: italic; }
+    .num { color: #f78c6c; }
+    .ty  { color: #ffcb6b; }
+
+    /* ── Tables ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 13px;
+    }
+
+    th {
+      text-align: left;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(51,51,77,0.4);
+      color: var(--text);
+      vertical-align: top;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    td:first-child { color: var(--accent2); font-weight: 600; font-family: monospace; }
+
+    /* ── Flow diagram ── */
+    .flow {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0;
+      margin: 16px 0;
+    }
+
+    .flow-box {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    .flow-arrow {
+      color: var(--accent);
+      font-size: 18px;
+      padding: 0 8px;
+      font-weight: 700;
+    }
+
+    /* ── Q&A ── */
+    .qa-block {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .qa-q {
+      padding: 16px 20px;
+      font-weight: 700;
+      font-size: 14px;
+      color: #fff;
+      background: rgba(129,140,248,0.07);
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .qa-q::after { content: "▼"; color: var(--accent); font-size: 11px; margin-top: 2px; flex-shrink: 0; }
+
+    .qa-a {
+      padding: 16px 20px;
+      color: var(--muted);
+      font-size: 13.5px;
+      line-height: 1.75;
+    }
+
+    .qa-a code {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: var(--accent2);
+    }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      margin-right: 4px;
+    }
+
+    .badge-green  { background: rgba(52,211,153,0.15); color: #34d399;       border: 1px solid rgba(52,211,153,0.3); }
+    .badge-blue   { background: rgba(96,165,250,0.15); color: var(--blue);    border: 1px solid rgba(96,165,250,0.3); }
+    .badge-yellow { background: rgba(251,191,36,0.15); color: var(--yellow);  border: 1px solid rgba(251,191,36,0.3); }
+    .badge-purple { background: rgba(192,132,252,0.15);color: var(--purple);  border: 1px solid rgba(192,132,252,0.3); }
+    .badge-red    { background: rgba(248,113,113,0.15);color: var(--red);     border: 1px solid rgba(248,113,113,0.3); }
+
+    /* ── Lists ── */
+    ul, ol { padding-left: 22px; color: var(--muted); margin-bottom: 12px; }
+    li { margin-bottom: 6px; }
+    li strong { color: var(--text); }
+
+    /* ── Callout ── */
+    .callout {
+      border-left: 3px solid var(--accent);
+      background: rgba(129,140,248,0.06);
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+      font-size: 13.5px;
+      color: var(--muted);
+    }
+
+    .callout.blue  { border-color: var(--blue);   background: rgba(96,165,250,0.05); }
+    .callout.yellow{ border-color: var(--yellow);  background: rgba(251,191,36,0.05); }
+    .callout.red   { border-color: var(--red);     background: rgba(248,113,113,0.05); }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg2); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    @media (max-width: 800px) {
+      nav { display: none; }
+      main { padding: 24px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ── Sidebar ── -->
+  <nav>
+    <div class="nav-title">Inkwell Deep Dive</div>
+
+    <div class="nav-section">Overview</div>
+    <a href="#overview">Project Overview</a>
+    <a href="#stack">Tech Stack</a>
+    <a href="#structure">Project Structure</a>
+
+    <div class="nav-section">Core Concepts</div>
+    <a href="#nextjs">Next.js 15 App Router</a>
+    <a href="#server-actions">Server Actions</a>
+    <a href="#auth">Authentication Flow</a>
+    <a href="#middleware">Middleware &amp; Protection</a>
+    <a href="#prisma">Prisma ORM &amp; Schema</a>
+    <a href="#zod">Zod Validation</a>
+
+    <div class="nav-section">Features</div>
+    <a href="#editor">Editor &amp; Content Pipeline</a>
+    <a href="#ai-assist">AI Writing Assist</a>
+    <a href="#notifications">Notifications System</a>
+    <a href="#comments">Comments &amp; Soft Delete</a>
+    <a href="#tags">Tag Sync</a>
+    <a href="#rate-limit">Rate Limiting</a>
+    <a href="#upload">Media Upload</a>
+
+    <div class="nav-section">Patterns</div>
+    <a href="#data-flow">Full Data Flow — Publishing</a>
+    <a href="#auth-split">Auth Split Pattern</a>
+    <a href="#optimistic">Optimistic UI</a>
+    <a href="#transactions">Transactional Mutations</a>
+
+    <div class="nav-section">Interview Q&amp;A</div>
+    <a href="#qa-nextjs">Next.js Questions</a>
+    <a href="#qa-auth">Auth Questions</a>
+    <a href="#qa-db">Database Questions</a>
+    <a href="#qa-patterns">Pattern Questions</a>
+    <a href="#qa-security">Security Questions</a>
+  </nav>
+
+  <!-- ── Main ── -->
+  <main>
+
+    <!-- Hero -->
+    <div class="hero">
+      <h1>Inkwell — Technical Deep Dive</h1>
+      <p>A complete walkthrough of every architectural decision, data flow, and implementation pattern in this full-stack publishing platform — a Medium/Ghost/Substack-style product built end to end.</p>
+      <div class="hero-tags">
+        <span class="tag">Next.js 15</span>
+        <span class="tag">TypeScript</span>
+        <span class="tag">Prisma 6</span>
+        <span class="tag">PostgreSQL</span>
+        <span class="tag">NextAuth v5</span>
+        <span class="tag">Zod</span>
+        <span class="tag">Tiptap</span>
+        <span class="tag">Tailwind CSS v4</span>
+        <span class="tag">shadcn/ui</span>
+        <span class="tag">Groq AI</span>
+        <span class="tag">Resend</span>
+        <span class="tag">UploadThing</span>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════ OVERVIEW ════════════════════════════════ -->
+    <section id="overview">
+      <h2>Project Overview</h2>
+
+      <p>Inkwell is a full-stack publishing platform — write, publish, and discover long-form articles, with real accounts, comments, notifications, and an admin panel behind it. It's built as a genuine multi-role product: readers, writers, moderators, and admins each get different capabilities enforced at every layer, not just hidden in the UI.</p>
+
+      <div class="card">
+        <div class="card-title">What the system does</div>
+        <ul>
+          <li><strong>Public site:</strong> Home page (featured/latest/trending posts, categories, featured writers), Discover (search/sort/filter), category listings, public author profiles (<code>/@username</code>), article pages with comments.</li>
+          <li><strong>Writer tools:</strong> A Tiptap-based editor with autosave, AI-assisted titles/excerpts/tags, real image upload, a "Following" feed, reading lists, a personal dashboard with stats.</li>
+          <li><strong>Admin panel (/admin):</strong> Live stats + posts-per-day chart, user management (role change, ban/unban), post management (status, feature toggle), and a moderation queue for reports — every mutation writes an audit log entry.</li>
+        </ul>
+      </div>
+
+      <div class="callout">
+        <strong>Key architectural philosophy:</strong> There are no REST API routes for data mutations. Everything goes through <strong>Next.js Server Actions</strong> — functions that run on the server but are called directly from client components, eliminating fetch() calls to internal API routes. The only real API routes are the two things that genuinely need one: the NextAuth handler and the UploadThing handler.
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════ STACK ════════════════════════════════ -->
+    <section id="stack">
+      <h2>Tech Stack — What Each Tool Does</h2>
+
+      <table>
+        <thead>
+          <tr><th>Tool</th><th>Role in this project</th><th>Why this choice</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Next.js 15</td>
+            <td>Full-stack framework — routing, server components, server actions, and the two real API routes (auth, upload) in one codebase</td>
+            <td>App Router lets server and client rendering mix per component; no separate backend service needed</td>
+          </tr>
+          <tr>
+            <td>TypeScript</td>
+            <td>Type safety end to end — types flow from the Prisma schema → services → server actions → client components</td>
+            <td>Catches data-shape mismatches at compile time, especially valuable across a 26-model schema</td>
+          </tr>
+          <tr>
+            <td>Tailwind CSS v4</td>
+            <td>All styling — CSS-first config via <code>@theme inline</code>, dark/light theming</td>
+            <td>Utility-first with zero CSS files to maintain; v4's CSS-first config removes the JS config file entirely</td>
+          </tr>
+          <tr>
+            <td>shadcn/ui (Radix)</td>
+            <td>Accessible unstyled primitives (dialog, dropdown, popover, alert-dialog, table) copied into the codebase, not installed as a black-box dependency</td>
+            <td>Full control over markup/behavior; accessibility (focus trap, ARIA) handled by Radix underneath</td>
+          </tr>
+          <tr>
+            <td>Prisma ORM v6</td>
+            <td>Type-safe database client — schema declaration, migrations, and query builder for 26 models</td>
+            <td>Auto-generated TypeScript types from schema; parameterized queries are SQL-injection-safe by construction</td>
+          </tr>
+          <tr>
+            <td>PostgreSQL</td>
+            <td>Primary database — relational data with real foreign keys, cascades, and composite unique constraints</td>
+            <td>Needed for enums, full-text-capable search, and the relational integrity a social/content graph like this depends on</td>
+          </tr>
+          <tr>
+            <td>NextAuth v5</td>
+            <td>Authentication — Credentials (email/password) + Google/GitHub OAuth, JWT sessions, Edge-safe middleware config</td>
+            <td>Tight Next.js integration; one config split into an Edge-safe subset and a full Node.js version (see Auth Split Pattern)</td>
+          </tr>
+          <tr>
+            <td>bcryptjs</td>
+            <td>Password hashing — one-way hash with salt (12 rounds)</td>
+            <td>Pure JS, no native bindings; works in the Node.js runtime used by server actions</td>
+          </tr>
+          <tr>
+            <td>Zod</td>
+            <td>Schema validation for every server action's input, before it ever touches the database</td>
+            <td>Composable schemas; infers TypeScript types so validation and types share one source of truth</td>
+          </tr>
+          <tr>
+            <td>React Hook Form</td>
+            <td>Client-side form state for auth, editor fields, comments, admin forms</td>
+            <td>Uncontrolled inputs avoid re-rendering on every keystroke; plugs into Zod via <code>@hookform/resolvers</code></td>
+          </tr>
+          <tr>
+            <td>Tiptap</td>
+            <td>The rich-text editor — headings, lists, code blocks, tables, images, links — outputting both HTML and a JSON document tree</td>
+            <td>Headless and extensible; storing JSON alongside HTML makes the editor state re-loadable for resuming a draft</td>
+          </tr>
+          <tr>
+            <td>unified / rehype</td>
+            <td>Server-side pipeline that sanitizes and syntax-highlights the editor's HTML before it's rendered to real readers</td>
+            <td>Composable AST-based transforms — parse, slug headings, sanitize against XSS, highlight code, stringify — as one pipe</td>
+          </tr>
+          <tr>
+            <td>Groq (<code>openai/gpt-oss-120b</code>)</td>
+            <td>AI writing assist — title suggestions, excerpt generation, and tag suggestions from the current draft</td>
+            <td>Fast inference for a snappy in-editor experience; the reasoning-model quirks (see AI Assist section) are handled explicitly</td>
+          </tr>
+          <tr>
+            <td>Resend</td>
+            <td>Transactional email — welcome, follow, comment/reply, and like notifications</td>
+            <td>Simple API, good deliverability; every send is wrapped to log-and-swallow so a failed email never blocks the underlying action</td>
+          </tr>
+          <tr>
+            <td>UploadThing</td>
+            <td>Real file storage for cover images and inline editor images (4MB limit, image types only)</td>
+            <td>Auth-gated server-side in its own <code>.middleware()</code> — a presigned URL is never issued to an unauthenticated request</td>
+          </tr>
+          <tr>
+            <td>Framer Motion</td>
+            <td>Scroll-triggered reveal and staggered-list animations (<code>Reveal</code>, <code>Stagger</code>/<code>StaggerItem</code>)</td>
+            <td>Wrapped in <code>MotionConfig reducedMotion="user"</code> so the whole app respects the OS-level reduce-motion preference automatically</td>
+          </tr>
+          <tr>
+            <td>TanStack Query</td>
+            <td>Client-side data layer for interactive pieces that need it beyond server-rendered data</td>
+            <td>Caching/retry semantics without hand-rolling loading/error state everywhere</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ════════════════════════════════ STRUCTURE ════════════════════════════════ -->
+    <section id="structure">
+      <h2>Project Structure</h2>
+
+      <pre><code>src/
+├── app/
+│   ├── (auth)/             <span class="cm">← Route group — login, signup, no site chrome</span>
+│   ├── (main)/             <span class="cm">← Public site — home, discover, articles, feed, categories, /@username</span>
+│   ├── api/auth/           <span class="cm">← Only real API route #1: NextAuth handler</span>
+│   ├── api/uploadthing/    <span class="cm">← Only real API route #2: UploadThing handler</span>
+│   ├── new-post/           <span class="cm">← Protected editor: new draft + /new-post/[id] resume</span>
+│   ├── dashboard/          <span class="cm">← Protected user dashboard + reading lists</span>
+│   ├── admin/              <span class="cm">← Protected admin panel (ADMIN role only)</span>
+│   └── middleware.ts       <span class="cm">← Route protection (Edge runtime)</span>
+├── features/               <span class="cm">← Feature-based modules, not type-based</span>
+│   ├── auth/                <span class="cm">actions, schemas, components, password strength</span>
+│   ├── posts/                <span class="cm">services (data access), actions, schemas, components</span>
+│   ├── editor/                <span class="cm">Tiptap editor, toolbar, AI assist, tag input, image upload</span>
+│   ├── comments/               <span class="cm">actions (create/update/delete), schemas, services, components</span>
+│   ├── profile/                 <span class="cm">follow action, services, /@username components</span>
+│   ├── search/                   <span class="cm">discover filter controls</span>
+│   ├── bookmarks/                 <span class="cm">toggle-bookmark action</span>
+│   ├── dashboard/                  <span class="cm">services + components for the user dashboard</span>
+│   ├── admin/                       <span class="cm">services, actions, components (stats, users, posts, reports)</span>
+│   ├── notifications/                <span class="cm">services, actions, bell dropdown component</span>
+│   ├── collections/                   <span class="cm">reading lists — schemas, services, actions, components</span>
+│   └── reports/                        <span class="cm">schemas, actions, reusable report dialog</span>
+├── components/
+│   ├── ui/                 <span class="cm">← shadcn/ui primitives</span>
+│   ├── layout/              <span class="cm">← Header, footer, admin sidebar, theme toggle</span>
+│   └── motion/                <span class="cm">← Reveal, Stagger/StaggerItem (Framer Motion primitives)</span>
+├── server/
+│   ├── auth/                <span class="cm">← NextAuth config: config.ts (full) + edge-config.ts (Edge-safe)</span>
+│   ├── db/                    <span class="cm">← Prisma client singleton</span>
+│   ├── email/                  <span class="cm">← Resend client, HTML templates, send functions</span>
+│   ├── ai/                       <span class="cm">← Groq completion client</span>
+│   └── uploadthing/                <span class="cm">← File router (auth-gated, image-only, 4MB)</span>
+└── lib/                     <span class="cm">← slug generation, password strength, rehype render pipeline,</span>
+                              <span class="cm">  rate limiting, stripHtml, cn()</span>
+prisma/
+├── schema.prisma            <span class="cm">← 26 models, 10 enums</span>
+├── migrations/                <span class="cm">← Migration history</span>
+└── seed.ts                     <span class="cm">← Sample categories, tags, authors, published posts</span></code></pre>
+
+      <div class="callout blue">
+        <strong>Feature-based, not type-based.</strong> Instead of top-level <code>components/</code>, <code>hooks/</code>, <code>actions/</code> folders holding everything, each domain (<code>posts</code>, <code>comments</code>, <code>editor</code>...) owns its own <code>actions/</code>, <code>components/</code>, <code>schemas/</code>, and <code>services/</code>. Adding a feature means adding a folder, not touching five unrelated top-level directories.
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════ NEXTJS ════════════════════════════════ -->
+    <section id="nextjs">
+      <h2>Next.js 15 App Router</h2>
+
+      <p>Every file in <code>app/</code> is a <strong>React Server Component (RSC)</strong> by default. Data-fetching pages call Prisma directly; interactive pieces opt into client rendering explicitly.</p>
+
+      <h3>Server Components vs Client Components</h3>
+
+      <div class="card">
+        <div class="card-title">Server Component (default)</div>
+        <ul>
+          <li>Runs <strong>only on the server</strong> — never shipped to the browser as JS</li>
+          <li>Can <code>await</code> Prisma calls directly — no <code>useEffect</code>, no internal <code>fetch()</code></li>
+          <li>Example: <code>src/app/(main)/page.tsx</code> — the home page directly calls <code>getFeaturedPosts()</code>, <code>getLatestPosts()</code>, <code>getFeaturedWriters()</code> in parallel with <code>Promise.all</code></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Client Component ("use client")</div>
+        <ul>
+          <li>Server-rendered for the initial HTML, then hydrated in the browser</li>
+          <li>Can use hooks, event handlers, browser APIs</li>
+          <li>Examples: <code>PostEditor</code> (Tiptap needs the DOM), <code>CommentForm</code>, <code>FollowButton</code>, the admin tables</li>
+        </ul>
+      </div>
+
+      <h3>How a protected page renders</h3>
+
+      <div class="flow">
+        <div class="flow-box">Browser requests /new-post/abc123</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">middleware.ts (Edge)</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">Auth check (JWT)</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">page.tsx (Server) fetches the draft</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">Ownership check</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">PostEditor hydrates client-side</div>
+      </div>
+
+      <h3>Route groups used here</h3>
+      <table>
+        <thead><tr><th>Group / segment</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td>(auth)</td><td>Login/signup — minimal layout, no header/footer</td></tr>
+          <tr><td>(main)</td><td>Public site — shares the header/footer layout; home, discover, articles, feed, categories, profiles</td></tr>
+          <tr><td>[handle]</td><td>Dynamic route for <code>/@username</code> profile pages, resolved from the URL segment</td></tr>
+          <tr><td>[id]/page.tsx</td><td>Dynamic route — e.g. <code>new-post/[id]</code> resumes editing a specific draft by its Prisma id</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ════════════════════════════════ SERVER ACTIONS ════════════════════════════════ -->
+    <section id="server-actions">
+      <h2>Server Actions</h2>
+
+      <p>Every mutation in this project — creating a comment, liking a post, saving a draft, following a user, banning an account — is a function marked <code>"use server"</code>, called directly from a client component like a normal async function call.</p>
+
+      <h3>The shape every action follows</h3>
+      <pre><code><span class="cm">// src/features/comments/actions/create-comment.action.ts</span>
+<span class="str">"use server"</span>;
+
+<span class="kw">export async function</span> <span class="fn">createCommentAction</span>(input: <span class="ty">CreateCommentInput</span>) {
+  <span class="cm">// 1. Auth check — session read server-side, never trusted from the client</span>
+  <span class="kw">const</span> session = <span class="kw">await</span> <span class="fn">auth</span>();
+  <span class="kw">if</span> (!session?.user) <span class="kw">throw new</span> <span class="fn">Error</span>(<span class="str">"You must be signed in to comment."</span>);
+
+  <span class="cm">// 2. Validate input with Zod — never trust the shape of client data</span>
+  <span class="kw">const</span> { postId, content, parentId } = createCommentSchema.<span class="fn">parse</span>(input);
+
+  <span class="cm">// 3. Business logic in a transaction — see Transactional Mutations</span>
+  <span class="kw">const</span> comment = <span class="kw">await</span> db.<span class="fn">$transaction</span>(<span class="kw">async</span> (tx) =&gt; {
+    <span class="kw">const</span> created = <span class="kw">await</span> tx.comment.<span class="fn">create</span>({ data: { postId, authorId: session.user.id, content, parentId } });
+    <span class="kw">await</span> tx.post.<span class="fn">update</span>({ where: { id: postId }, data: { commentCount: { increment: <span class="num">1</span> } } });
+    <span class="cm">// ...also creates a Notification row here, see Notifications System</span>
+    <span class="kw">return</span> created;
+  });
+
+  <span class="cm">// 4. Invalidate the article page's cache</span>
+  <span class="fn">revalidatePath</span>(`/articles/${post.slug}`);
+  <span class="kw">return</span> comment;
+}</code></pre>
+
+      <h3>Calling it from a client component</h3>
+      <pre><code><span class="cm">// comment-form.tsx — react-hook-form + useTransition</span>
+<span class="kw">function</span> <span class="fn">onSubmit</span>(values: <span class="ty">CreateCommentInput</span>) {
+  <span class="fn">startTransition</span>(<span class="kw">async</span> () =&gt; {
+    <span class="kw">try</span> {
+      <span class="kw">await</span> <span class="fn">createCommentAction</span>(values); <span class="cm">// ← looks local, runs on the server</span>
+      form.<span class="fn">reset</span>();
+    } <span class="kw">catch</span> (error) {
+      toast.<span class="fn">error</span>(error <span class="kw">instanceof</span> <span class="ty">Error</span> ? error.message : <span class="str">"Failed to post comment."</span>);
+    }
+  });
+}</code></pre>
+
+      <p>Every action in the codebase follows this same skeleton: <strong>auth → validate → mutate (transaction if multiple writes) → revalidate</strong>. Once that shape is familiar, reading any new action takes seconds.</p>
+    </section>
+
+    <!-- ════════════════════════════════ AUTH ════════════════════════════════ -->
+    <section id="auth">
+      <h2>Authentication Flow</h2>
+
+      <p>NextAuth v5 with two providers: a <strong>Credentials provider</strong> (email/password) and optional Google/GitHub OAuth. Sessions are JWTs stored in an httpOnly cookie — no database session lookup on every request.</p>
+
+      <h3>Credentials login step by step</h3>
+
+      <div class="flow" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div class="flow-box" style="background: rgba(129,140,248,0.1); border-color: rgba(129,140,248,0.3);">1. Form submits</div>
+          <div class="flow-arrow">→</div>
+          <div style="color: var(--muted); font-size: 13px;">email + password to NextAuth's signIn("credentials")</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div class="flow-box" style="background: rgba(129,140,248,0.1); border-color: rgba(129,140,248,0.3);">2. authorize() runs</div>
+          <div class="flow-arrow">→</div>
+          <div style="color: var(--muted); font-size: 13px;">Zod validates shape → rate-limit check → DB lookup → bcrypt.compare()</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div class="flow-box" style="background: rgba(129,140,248,0.1); border-color: rgba(129,140,248,0.3);">3. jwt() callback</div>
+          <div class="flow-arrow">→</div>
+          <div style="color: var(--muted); font-size: 13px;">id, role, and username (from Profile) added to the token</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div class="flow-box" style="background: rgba(129,140,248,0.1); border-color: rgba(129,140,248,0.3);">4. session() callback</div>
+          <div class="flow-arrow">→</div>
+          <div style="color: var(--muted); font-size: 13px;">id/role/username copied from token onto session.user</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div class="flow-box" style="background: rgba(129,140,248,0.1); border-color: rgba(129,140,248,0.3);">5. Cookie signed</div>
+          <div class="flow-arrow">→</div>
+          <div style="color: var(--muted); font-size: 13px;">Encrypted with AUTH_SECRET, stored httpOnly</div>
+        </div>
+      </div>
+
+      <h3>The authorize() function, including rate limiting</h3>
+      <pre><code><span class="cm">// src/server/auth/config.ts</span>
+<span class="kw">async</span> <span class="fn">authorize</span>(rawCredentials) {
+  <span class="kw">const</span> parsed = credentialsSchema.<span class="fn">safeParse</span>(rawCredentials);
+  <span class="kw">if</span> (!parsed.success) <span class="kw">return null</span>;
+
+  <span class="kw">const</span> { email, password } = parsed.data;
+
+  <span class="cm">// 5 attempts / 15 min, keyed per email — not global, not per-IP</span>
+  <span class="kw">if</span> (!<span class="fn">checkRateLimit</span>(`login:${email.<span class="fn">toLowerCase</span>()}`, LOGIN_RATE_LIMIT)) {
+    <span class="kw">return null</span>;
+  }
+
+  <span class="kw">const</span> user = <span class="kw">await</span> db.user.<span class="fn">findUnique</span>({ where: { email } });
+  <span class="kw">if</span> (!user?.passwordHash) <span class="kw">return null</span>;
+
+  <span class="kw">const</span> isValid = <span class="kw">await</span> bcrypt.<span class="fn">compare</span>(password, user.passwordHash);
+  <span class="kw">if</span> (!isValid) <span class="kw">return null</span>;
+  <span class="kw">if</span> (user.isBanned) <span class="kw">return null</span>;
+
+  <span class="kw">return</span> { id: user.id, name: user.name, email: user.email, image: user.image, role: user.role };
+}</code></pre>
+
+      <div class="callout yellow">
+        <strong>Why rate-limit inside authorize(), not in front of it?</strong> Rejecting inside <code>authorize()</code> reuses NextAuth's existing "invalid credentials" response path — the client gets the same generic failure whether the password was wrong or the account is locked out. That's deliberate: a distinct "you're rate-limited" response would leak information about which accounts exist and are being targeted.
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════ MIDDLEWARE ════════════════════════════════ -->
+    <section id="middleware">
+      <h2>Middleware &amp; Route Protection</h2>
+
+      <p>Middleware runs at the <strong>Edge</strong>, before any page or server action executes. It's the first and cheapest gate.</p>
+
+      <pre><code><span class="cm">// src/middleware.ts</span>
+<span class="kw">import</span> { auth } <span class="kw">from</span> <span class="str">"@/server/auth/edge"</span>;
+<span class="kw">import</span> { NextResponse } <span class="kw">from</span> <span class="str">"next/server"</span>;
+
+<span class="kw">const</span> PROTECTED_PREFIXES = [<span class="str">"/dashboard"</span>, <span class="str">"/settings"</span>, <span class="str">"/new-post"</span>, <span class="str">"/admin"</span>];
+<span class="kw">const</span> ADMIN_PREFIXES = [<span class="str">"/admin"</span>];
+
+<span class="kw">export default</span> <span class="fn">auth</span>((req) =&gt; {
+  <span class="kw">const</span> { pathname } = req.nextUrl;
+  <span class="kw">const</span> isProtected = PROTECTED_PREFIXES.<span class="fn">some</span>((p) =&gt; pathname.<span class="fn">startsWith</span>(p));
+  <span class="kw">const</span> isAdminOnly = ADMIN_PREFIXES.<span class="fn">some</span>((p) =&gt; pathname.<span class="fn">startsWith</span>(p));
+
+  <span class="kw">if</span> (!isProtected) <span class="kw">return</span> NextResponse.<span class="fn">next</span>();
+
+  <span class="kw">if</span> (!req.auth) {
+    <span class="kw">const</span> loginUrl = <span class="kw">new</span> <span class="fn">URL</span>(<span class="str">"/login"</span>, req.nextUrl.origin);
+    loginUrl.searchParams.<span class="fn">set</span>(<span class="str">"callbackUrl"</span>, pathname);
+    <span class="kw">return</span> NextResponse.<span class="fn">redirect</span>(loginUrl);
+  }
+
+  <span class="kw">if</span> (isAdminOnly &amp;&amp; req.auth.user.role !== <span class="str">"ADMIN"</span>) {
+    <span class="kw">return</span> NextResponse.<span class="fn">redirect</span>(<span class="kw">new</span> <span class="fn">URL</span>(<span class="str">"/"</span>, req.nextUrl.origin));
+  }
+
+  <span class="kw">return</span> NextResponse.<span class="fn">next</span>();
+});
+
+<span class="kw">export const</span> config = {
+  matcher: [<span class="str">"/dashboard/:path*"</span>, <span class="str">"/settings/:path*"</span>, <span class="str">"/new-post/:path*"</span>, <span class="str">"/admin/:path*"</span>],
+};</code></pre>
+
+      <p>Two things happen in one pass: is the user authenticated at all, and — for <code>/admin</code> specifically — do they have the right role. A signed-in reader hitting <code>/admin</code> gets redirected home, not to login (they're already authenticated; they're just not authorized).</p>
+
+      <div class="callout yellow">
+        <strong>Why <code>@/server/auth/edge</code> and not the main auth module?</strong> See the Auth Split Pattern below — middleware runs in the Edge runtime, which can't load bcryptjs or the Prisma adapter.
+      </div>
+
+      <h3>Verified behavior</h3>
+      <table>
+        <thead><tr><th>Scenario</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td>Signed out → /new-post</td><td>307 redirect to /login?callbackUrl=/new-post</td></tr>
+          <tr><td>Signed in reader → /admin</td><td>307 redirect to /</td></tr>
+          <tr><td>Signed in ADMIN → /admin</td><td>200</td></tr>
+          <tr><td>Anyone → /discover (not in matcher)</td><td>200, middleware never runs</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ════════════════════════════════ PRISMA ════════════════════════════════ -->
+    <section id="prisma">
+      <h2>Prisma ORM &amp; Database Schema</h2>
+
+      <h3>The Prisma singleton pattern</h3>
+      <pre><code><span class="cm">// src/server/db/client.ts</span>
+<span class="kw">const</span> globalForPrisma = globalThis <span class="kw">as unknown as</span> { prisma?: <span class="ty">PrismaClient</span> };
+
+<span class="kw">export const</span> db =
+  globalForPrisma.prisma ?? <span class="kw">new</span> <span class="fn">PrismaClient</span>();
+
+<span class="kw">if</span> (process.env.NODE_ENV !== <span class="str">"production"</span>) globalForPrisma.prisma = db;</code></pre>
+
+      <div class="callout red">
+        <strong>Why the singleton?</strong> Next.js dev's Hot Module Replacement re-evaluates modules on every save. Without this pattern, each HMR cycle instantiates a new <code>PrismaClient</code> — and Postgres has a connection-pool limit that gets exhausted quickly. Storing the instance on <code>globalThis</code> (which HMR doesn't re-evaluate) makes the client survive file saves.
+      </div>
+
+      <h3>Schema shape — 26 models, 10 enums</h3>
+      <table>
+        <thead><tr><th>Domain</th><th>Models</th></tr></thead>
+        <tbody>
+          <tr><td>Identity</td><td>User, Profile, UserSettings, Account, Session, VerificationToken</td></tr>
+          <tr><td>Content</td><td>Post, PostVersion, Category, PostCategory, Tag, PostTag, Series</td></tr>
+          <tr><td>Engagement</td><td>Comment, Reaction, Bookmark, Collection, CollectionItem, Follow, ReadingHistory</td></tr>
+          <tr><td>Platform</td><td>Notification, NewsletterSubscriber, Media, Report, AuditLog, SiteSettings</td></tr>
+        </tbody>
+      </table>
+
+      <h3>A few schema decisions worth knowing</h3>
+      <pre><code><span class="kw">model</span> <span class="ty">Comment</span> {
+  id       <span class="ty">String</span> @id @default(cuid())
+  content  <span class="ty">String</span> @db.Text
+  postId   <span class="ty">String</span>
+  authorId <span class="ty">String</span>
+
+  parentId <span class="ty">String</span>?
+  parent   <span class="ty">Comment</span>?  @relation(<span class="str">"CommentReplies"</span>, fields: [parentId], references: [id], onDelete: Cascade)
+  replies  <span class="ty">Comment</span>[] @relation(<span class="str">"CommentReplies"</span>)
+
+  isEdited  <span class="ty">Boolean</span> @default(<span class="kw">false</span>)   <span class="cm">// set true on edit, no separate edit-history table</span>
+  isDeleted <span class="ty">Boolean</span> @default(<span class="kw">false</span>)   <span class="cm">// soft delete — see Comments & Soft Delete section</span>
+
+  @@index([postId])
+  @@index([parentId])
+}</code></pre>
+
+      <p>Nesting is intentionally capped at one level — <code>replies</code> don't themselves have <code>replies</code>. A self-relation with <code>onDelete: Cascade</code> means deleting a comment at the DB level would cascade-delete its replies; the app never hard-deletes a comment with live replies for exactly that reason (see the Comments section).</p>
+
+      <pre><code><span class="kw">model</span> <span class="ty">PostTag</span> {
+  postId <span class="ty">String</span>
+  tagId  <span class="ty">String</span>
+  @@id([postId, tagId])   <span class="cm">// composite primary key — no separate id column, no duplicate rows possible</span>
+}</code></pre>
+
+      <p>Many-to-many join tables (<code>PostTag</code>, <code>PostCategory</code>) use a composite primary key on the two foreign keys instead of their own <code>id</code>. It's both the natural uniqueness constraint and the key Prisma's <code>upsert</code>/<code>delete</code> calls target directly (<code>postId_tagId: { postId, tagId }</code>).</p>
+    </section>
+
+    <!-- ════════════════════════════════ ZOD ════════════════════════════════ -->
+    <section id="zod">
+      <h2>Zod Validation</h2>
+
+      <p>Every server action validates its input with Zod before touching the database — the schema is the single source of truth for both runtime validation and the TypeScript type.</p>
+
+      <pre><code><span class="cm">// src/features/comments/schemas/comment.schema.ts</span>
+<span class="kw">export const</span> createCommentSchema = z.<span class="fn">object</span>({
+  postId:  z.<span class="fn">string</span>().<span class="fn">cuid</span>(),
+  content: z.<span class="fn">string</span>().<span class="fn">trim</span>().<span class="fn">min</span>(<span class="num">1</span>, <span class="str">"Comment can't be empty"</span>).<span class="fn">max</span>(<span class="num">5000</span>),
+  parentId: z.<span class="fn">string</span>().<span class="fn">cuid</span>().<span class="fn">optional</span>(),
+});
+
+<span class="cm">// Type is inferred — one source of truth for validation and types</span>
+<span class="kw">export type</span> <span class="ty">CreateCommentInput</span> = z.<span class="fn">infer</span>&lt;<span class="kw">typeof</span> createCommentSchema&gt;;</code></pre>
+
+      <p>Server actions call <code>.parse()</code> (throws on failure, caught by the client's try/catch around the action call) rather than <code>.safeParse()</code> — consistent with the try/catch + toast error pattern used throughout the client components here, instead of field-level form errors returned from every action.</p>
+
+      <h3>React Hook Form + Zod resolver</h3>
+      <pre><code><span class="kw">const</span> form = <span class="fn">useForm</span>&lt;<span class="ty">CreateCommentInput</span>&gt;({
+  resolver: <span class="fn">zodResolver</span>(createCommentSchema),
+  defaultValues: { postId, parentId, content: <span class="str">""</span> },
+});
+<span class="cm">// Client-side validation runs the same schema before the server action is ever called</span></code></pre>
+    </section>
+
+    <!-- ════════════════════════════════ EDITOR ════════════════════════════════ -->
+    <section id="editor">
+      <h2>Editor &amp; Content Pipeline</h2>
+
+      <h3>Why HTML is sanitized server-side before rendering</h3>
+      <p>Tiptap's native output is HTML (plus a JSON document tree kept alongside it for reloading the editor state). That HTML is rendered to real readers with <code>dangerouslySetInnerHTML</code> — which means it has to be untrusted by default and cleaned up before it ever reaches the browser.</p>
+
+      <pre><code><span class="cm">// src/lib/render-content.ts</span>
+<span class="kw">const</span> processor = <span class="fn">unified</span>()
+  .<span class="fn">use</span>(rehypeParse, { fragment: <span class="kw">true</span> })   <span class="cm">// HTML string → AST</span>
+  .<span class="fn">use</span>(rehypeSlug)                     <span class="cm">// headings get id="..." for the table of contents</span>
+  .<span class="fn">use</span>(rehypeSanitize, schema)         <span class="cm">// strips scripts/handlers/unknown tags — XSS defense</span>
+  .<span class="fn">use</span>(rehypeHighlight)                <span class="cm">// syntax-highlights &lt;pre&gt;&lt;code&gt; blocks</span>
+  .<span class="fn">use</span>(rehypeStringify);              <span class="cm">// AST → HTML string</span>
+
+<span class="kw">export async function</span> <span class="fn">renderPostHtml</span>(rawHtml: <span class="ty">string</span>): <span class="ty">Promise</span>&lt;<span class="ty">string</span>&gt; {
+  <span class="kw">const</span> file = <span class="kw">await</span> processor.<span class="fn">process</span>(rawHtml);
+  <span class="kw">return</span> <span class="ty">String</span>(file);
+}</code></pre>
+
+      <div class="callout red">
+        <strong>The sanitize step is what makes <code>dangerouslySetInnerHTML</code> safe here.</strong> Without <code>rehypeSanitize</code>, any HTML a writer's editor session produced (or anything an attacker got into the JSON/HTML via a compromised client) would render verbatim — including <code>&lt;script&gt;</code> tags. The schema extends rehype's default allowlist only to add <code>img</code> and a few explicit attributes (<code>className</code>, <code>id</code>, link <code>target</code>/<code>rel</code>) — nothing else gets through.
+      </div>
+
+      <h3>Resuming a draft</h3>
+      <p><code>/new-post/[id]</code> loads a post owned by the current user and hands both the saved JSON and raw HTML to the editor:</p>
+      <pre><code><span class="kw">const</span> post = <span class="kw">await</span> db.post.<span class="fn">findUnique</span>({ where: { id }, include: { tags: { include: { tag: <span class="kw">true</span> } } } });
+<span class="kw">if</span> (!post || post.authorId !== session.user.id) <span class="fn">notFound</span>();
+
+<span class="kw">return</span> (
+  &lt;<span class="ty">PostEditor</span>
+    postId={post.id}
+    initialTags={post.tags.<span class="fn">map</span>(({ tag }) =&gt; tag.name)}
+    <span class="cm">// falls back to raw HTML if no saved Tiptap JSON exists (true for older/seeded posts)</span>
+    initialContent={(post.contentJson <span class="kw">as</span> <span class="ty">JSONContent</span> | <span class="kw">null</span>) ?? post.content}
+  /&gt;
+);</code></pre>
+
+      <h3>Autosave — tracking the created post id</h3>
+      <p>The editor creates a draft <code>Post</code> row on the first save and must reuse that same id on every subsequent autosave tick, not create a new post every ~8 seconds. It tracks the id in both state (for re-renders) and a ref (so the debounced autosave closure always reads the current value, not a stale one from when the effect was set up):</p>
+      <pre><code><span class="kw">const</span> currentPostIdRef = <span class="fn">useRef</span>(currentPostId);
+currentPostIdRef.current = currentPostId;
+
+<span class="kw">async function</span> <span class="fn">persistDraft</span>() {
+  <span class="kw">const</span> result = <span class="kw">await</span> <span class="fn">savePostDraftAction</span>({ postId: currentPostIdRef.current, ... });
+  <span class="kw">if</span> (!currentPostIdRef.current) {
+    currentPostIdRef.current = result.id;
+    <span class="fn">setCurrentPostId</span>(result.id);   <span class="cm">// only set once, on the very first save</span>
+  }
+  <span class="kw">return</span> result;
+}</code></pre>
+    </section>
+
+    <!-- ════════════════════════════════ AI ASSIST ════════════════════════════════ -->
+    <section id="ai-assist">
+      <h2>AI Writing Assist</h2>
+
+      <p>An "AI Assist" popover in the editor generates title suggestions, an excerpt, and tag suggestions from the current draft, using Groq's <code>openai/gpt-oss-120b</code>.</p>
+
+      <pre><code><span class="cm">// src/server/ai/client.ts</span>
+<span class="kw">export async function</span> <span class="fn">generateCompletion</span>({ system, prompt, maxTokens = <span class="num">400</span> }): <span class="ty">Promise</span>&lt;<span class="ty">string</span>&gt; {
+  <span class="kw">const</span> response = <span class="kw">await</span> <span class="fn">fetch</span>(GROQ_URL, {
+    method: <span class="str">"POST"</span>,
+    headers: { Authorization: `Bearer ${apiKey}`, <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span> },
+    body: <span class="ty">JSON</span>.<span class="fn">stringify</span>({
+      model: <span class="str">"openai/gpt-oss-120b"</span>,
+      messages: [{ role: <span class="str">"system"</span>, content: system }, { role: <span class="str">"user"</span>, content: prompt }],
+      max_tokens: maxTokens,
+      reasoning_effort: <span class="str">"low"</span>,   <span class="cm">// see callout below</span>
+      temperature: <span class="num">0.7</span>,
+    }),
+  });
+  <span class="cm">// ...error handling, extract data.choices[0].message.content</span>
+}</code></pre>
+
+      <div class="callout yellow">
+        <strong>Reasoning models silently return nothing if you don't budget for reasoning tokens.</strong> The first real test call used <code>max_tokens: 10</code> and got back an empty string — not an error, just <code>""</code>. <code>gpt-oss-120b</code> is a reasoning model: it spends tokens on a hidden chain-of-thought before writing the visible answer, and a too-small token budget gets entirely consumed by that hidden reasoning, leaving nothing for the actual output. The fix was two things together: setting <code>reasoning_effort: "low"</code> to cap how much it reasons, and giving each call a realistic <code>max_tokens</code> (300–400) instead of a stingy one.
+      </div>
+
+      <h3>Why every AI action shares one shape</h3>
+      <pre><code><span class="kw">export async function</span> <span class="fn">suggestTagsAction</span>(input) {
+  <span class="kw">await</span> <span class="fn">requireUser</span>();                                    <span class="cm">// auth gate</span>
+  <span class="kw">const</span> plainText = <span class="fn">truncateWords</span>(<span class="fn">stripHtml</span>(contentHtml)); <span class="cm">// bound the prompt size</span>
+  <span class="kw">if</span> (plainText.length &lt; <span class="num">20</span>) <span class="kw">throw new</span> <span class="fn">Error</span>(<span class="str">"Write a bit more first."</span>);
+
+  <span class="kw">const</span> raw = <span class="kw">await</span> <span class="fn">generateCompletion</span>({ system: <span class="str">"...5 short tags, comma-separated..."</span>, prompt, maxTokens: <span class="num">100</span> });
+
+  <span class="cm">// Post-process a free-text model response into a clean, bounded array —</span>
+  <span class="cm">// never trust the model to perfectly follow the "5 tags, comma-separated" instruction</span>
+  <span class="kw">const</span> tags = raw.<span class="fn">split</span>(<span class="str">","</span>).<span class="fn">map</span>((t) =&gt; t.<span class="fn">trim</span>()).<span class="fn">filter</span>(<span class="ty">Boolean</span>).<span class="fn">slice</span>(<span class="num">0</span>, <span class="num">5</span>);
+  <span class="kw">if</span> (tags.length === <span class="num">0</span>) <span class="kw">throw new</span> <span class="fn">Error</span>(<span class="str">"AI didn't return anything usable — try again."</span>);
+  <span class="kw">return</span> { tags };
+}</code></pre>
+
+      <p>Titles, excerpts, and tags each follow the identical shape: require a signed-in user, strip/truncate the draft's HTML to plain text so the prompt stays bounded, call Groq with a task-specific system prompt, then <em>parse the model's free-text response defensively</em> rather than trusting it returned exactly the requested format.</p>
+    </section>
+
+    <!-- ════════════════════════════════ NOTIFICATIONS ════════════════════════════════ -->
+    <section id="notifications">
+      <h2>Notifications System</h2>
+
+      <p>Follows, comments, replies, and likes all notify — in-app always, email conditionally based on the recipient's per-type setting (<code>emailOnComment</code>, <code>emailOnLike</code>, <code>emailOnFollow</code>).</p>
+
+      <h3>Replies notify the comment's author, not the post's author</h3>
+      <pre><code><span class="kw">const</span> recipient = parent ?? { authorId: post.authorId, author: post.author };
+<span class="kw">if</span> (recipient.authorId !== session.user.id) {
+  <span class="kw">await</span> tx.notification.<span class="fn">create</span>({
+    data: {
+      type: parent ? <span class="str">"COMMENT_REPLY"</span> : <span class="str">"COMMENT"</span>,
+      message: parent
+        ? `${session.user.name} replied to your comment on "${post.title}"`
+        : `${session.user.name} commented on your post "${post.title}"`,
+      link: `/articles/${post.slug}`,
+      recipientId: recipient.authorId,
+      actorId: session.user.id,
+    },
+  });
+}</code></pre>
+
+      <p>If replies always notified the <em>post</em> author, a long comment thread would spam the post's author with every back-and-forth reply that has nothing to do with them. Routing the notification to the immediate parent comment's author instead keeps it relevant — and the same <code>if (recipient.authorId !== session.user.id)</code> guard prevents self-notifying when you reply to your own comment or like your own post.</p>
+
+      <h3>Email sending never blocks or fails the underlying action</h3>
+      <pre><code><span class="kw">export async function</span> <span class="fn">sendCommentNotificationEmail</span>(params) {
+  <span class="kw">try</span> {
+    <span class="kw">await</span> resend.emails.<span class="fn">send</span>({ ... });
+  } <span class="kw">catch</span> (error) {
+    console.<span class="fn">error</span>(<span class="str">"Failed to send comment notification email"</span>, error);
+    <span class="cm">// deliberately swallowed — a broken email provider must never break commenting</span>
+  }
+}</code></pre>
+    </section>
+
+    <!-- ════════════════════════════════ COMMENTS ════════════════════════════════ -->
+    <section id="comments">
+      <h2>Comments &amp; Soft Delete</h2>
+
+      <p>Comments support one level of nested replies, editing, and deletion — but deletion has to account for the fact that a deleted comment might still have live replies underneath it.</p>
+
+      <h3>The tombstone problem</h3>
+      <p>The <code>Comment</code> model already had <code>isDeleted</code> and <code>isEdited</code> columns from the original schema design, unused until this feature. A naive delete — just filtering <code>isDeleted: false</code> everywhere — would make a deleted top-level comment disappear from the query entirely, silently orphaning any replies still nested under it (they'd never be fetched, since they only come back as part of their parent's <code>include</code>).</p>
+
+      <pre><code><span class="cm">// src/features/comments/services/comment.service.ts</span>
+<span class="kw">export async function</span> <span class="fn">getCommentsForPost</span>(postId: <span class="ty">string</span>) {
+  <span class="kw">const</span> comments = <span class="kw">await</span> db.comment.<span class="fn">findMany</span>({
+    where: { postId, parentId: <span class="kw">null</span> },   <span class="cm">// no isDeleted filter here —</span>
+    include: { author: <span class="kw">true</span>, replies: { include: { author: <span class="kw">true</span> } } },
+  });
+
+  <span class="cm">// A deleted top-level comment is dropped entirely unless it still has live</span>
+  <span class="cm">// replies underneath it — in which case it renders as a tombstone so the</span>
+  <span class="cm">// replies stay reachable.</span>
+  <span class="kw">return</span> comments.<span class="fn">filter</span>(
+    (c) =&gt; !c.isDeleted || c.replies.<span class="fn">some</span>((r) =&gt; !r.isDeleted)
+  );
+}</code></pre>
+
+      <p>The UI checks <code>comment.isDeleted</code> and renders <code>[deleted]</code> in place of the content and author actions, while still rendering any live replies underneath. Once every reply is also deleted, the parent naturally drops out of the filtered result on the next fetch — no separate cleanup job needed.</p>
+
+      <div class="callout">
+        This is a small, self-contained example of a broader idea: soft-delete flags aren't just "hide it" — they force you to think through every place that data is <em>still structurally referenced</em> by something else that's still alive.
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════ TAGS ════════════════════════════════ -->
+    <section id="tags">
+      <h2>Tag Sync — Diffing Instead of Replacing</h2>
+
+      <p>The editor autosaves roughly every 8 seconds. A tag list attached to a draft could naively be synced by deleting every <code>PostTag</code> row and recreating them from the current tag list on every save — but that would increment/decrement every tag's <code>usageCount</code> on every autosave tick, even when the tags haven't changed at all.</p>
+
+      <pre><code><span class="kw">async function</span> <span class="fn">syncPostTags</span>(tx, postId, rawTags) {
+  <span class="kw">const</span> names = [...<span class="kw">new</span> <span class="ty">Set</span>(rawTags.<span class="fn">map</span>((t) =&gt; t.<span class="fn">trim</span>().<span class="fn">toLowerCase</span>()))].<span class="fn">slice</span>(<span class="num">0</span>, <span class="num">10</span>);
+
+  <span class="kw">const</span> current = <span class="kw">await</span> tx.postTag.<span class="fn">findMany</span>({ where: { postId }, include: { tag: <span class="kw">true</span> } });
+  <span class="kw">const</span> currentNames = <span class="kw">new</span> <span class="ty">Set</span>(current.<span class="fn">map</span>((pt) =&gt; pt.tag.name));
+  <span class="kw">const</span> nextNames = <span class="kw">new</span> <span class="ty">Set</span>(names);
+
+  <span class="kw">const</span> toRemove = current.<span class="fn">filter</span>((pt) =&gt; !nextNames.<span class="fn">has</span>(pt.tag.name));  <span class="cm">// only what actually left</span>
+  <span class="kw">const</span> toAdd = names.<span class="fn">filter</span>((n) =&gt; !currentNames.<span class="fn">has</span>(n));           <span class="cm">// only what's genuinely new</span>
+
+  <span class="kw">for</span> (<span class="kw">const</span> pt <span class="kw">of</span> toRemove) {
+    <span class="kw">await</span> tx.postTag.<span class="fn">delete</span>({ where: { postId_tagId: { postId, tagId: pt.tagId } } });
+    <span class="kw">await</span> tx.tag.<span class="fn">update</span>({ where: { id: pt.tagId }, data: { usageCount: { decrement: <span class="num">1</span> } } });
+  }
+  <span class="kw">for</span> (<span class="kw">const</span> name <span class="kw">of</span> toAdd) {
+    <span class="kw">const</span> tag = <span class="kw">await</span> tx.tag.<span class="fn">upsert</span>({
+      where: { name },
+      update: { usageCount: { increment: <span class="num">1</span> } },
+      create: { name, slug: <span class="fn">slugify</span>(name), usageCount: <span class="num">1</span> },
+    });
+    <span class="kw">await</span> tx.postTag.<span class="fn">create</span>({ data: { postId, tagId: tag.id } });
+  }
+}</code></pre>
+
+      <p>Diffing against the current state means an autosave tick where nothing about the tags changed does zero tag writes. Tag names are lowercased before comparison so "JavaScript" and "javascript" collapse to one tag instead of silently creating duplicates.</p>
+    </section>
+
+    <!-- ════════════════════════════════ RATE LIMIT ════════════════════════════════ -->
+    <section id="rate-limit">
+      <h2>Rate Limiting</h2>
+
+      <p>A deliberately simple in-memory sliding-window limiter — no external store, resets on server restart, doesn't share state across instances. Enough to blunt casual brute-forcing and signup spam on a single-instance deployment; not a substitute for Upstash/Redis at real scale.</p>
+
+      <pre><code><span class="cm">// src/lib/rate-limit.ts</span>
+<span class="kw">const</span> attempts = <span class="kw">new</span> <span class="ty">Map</span>&lt;<span class="ty">string</span>, { count: <span class="ty">number</span>; resetAt: <span class="ty">number</span> }&gt;();
+
+<span class="kw">export function</span> <span class="fn">checkRateLimit</span>(key: <span class="ty">string</span>, { max, windowMs }): <span class="ty">boolean</span> {
+  <span class="kw">const</span> now = <span class="ty">Date</span>.<span class="fn">now</span>();
+  <span class="kw">const</span> entry = attempts.<span class="fn">get</span>(key);
+
+  <span class="kw">if</span> (!entry || entry.resetAt &lt;= now) {
+    attempts.<span class="fn">set</span>(key, { count: <span class="num">1</span>, resetAt: now + windowMs });
+    <span class="kw">return true</span>;
+  }
+  <span class="kw">if</span> (entry.count &gt;= max) <span class="kw">return false</span>;
+  entry.count += <span class="num">1</span>;
+  <span class="kw">return true</span>;
+}</code></pre>
+
+      <table>
+        <thead><tr><th>Action</th><th>Limit</th><th>Key</th></tr></thead>
+        <tbody>
+          <tr><td>Login</td><td>5 per 15 minutes</td><td><code>login:{email}</code> — scoped per account, not global</td></tr>
+          <tr><td>Signup</td><td>5 per hour</td><td><code>signup:{ip}</code> — from <code>x-forwarded-for</code></td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <strong>Verifying a rate limit actually works is harder than it sounds</strong> — a wrong password always returns the same generic failure whether or not the limiter fired. The real proof was a 6th login attempt using the <em>correct</em> password still failing after 5 failed ones, while a different account logged in normally at the same time — confirming it was the limiter blocking (not a credentials bug) and that it's scoped per-email (not a global lockout).
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════ UPLOAD ════════════════════════════════ -->
+    <section id="upload">
+      <h2>Media Upload</h2>
+
+      <p>Cover images and inline editor images upload through UploadThing rather than being stored as base64 or on the app server's filesystem.</p>
+
+      <pre><code><span class="cm">// src/server/uploadthing/core.ts</span>
+<span class="kw">export const</span> ourFileRouter = {
+  imageUploader: <span class="fn">f</span>({ image: { maxFileSize: <span class="str">"4MB"</span>, maxFileCount: <span class="num">1</span> } })
+    .<span class="fn">middleware</span>(<span class="kw">async</span> () =&gt; {
+      <span class="kw">const</span> session = <span class="kw">await</span> <span class="fn">auth</span>();
+      <span class="kw">if</span> (!session?.user) <span class="kw">throw new</span> <span class="fn">UploadThingError</span>(<span class="str">"You must be signed in to upload images."</span>);
+      <span class="kw">return</span> { userId: session.user.id };   <span class="cm">// available in onUploadComplete</span>
+    })
+    .<span class="fn">onUploadComplete</span>(<span class="kw">async</span> ({ metadata, file }) =&gt; {
+      <span class="kw">return</span> { uploadedBy: metadata.userId, url: file.ufsUrl };
+    }),
+} <span class="kw">satisfies</span> <span class="ty">FileRouter</span>;</code></pre>
+
+      <p>The auth check lives in <code>.middleware()</code>, which runs <em>before</em> UploadThing issues a presigned upload URL — an unauthenticated request is rejected before any URL to write to exists, not just hidden behind a disabled button client-side. A "paste a URL instead" fallback exists alongside the upload button for both the cover image and inline images.</p>
+    </section>
+
+    <!-- ════════════════════════════════ DATA FLOW ════════════════════════════════ -->
+    <section id="data-flow">
+      <h2>Full Data Flow — Publishing a Post</h2>
+
+      <div class="card">
+        <div class="card-title">1. Client — PostEditor autosaves, then Publish is clicked</div>
+        <p style="margin:0">The editor has already been autosaving the draft every ~8s via <code>savePostDraftAction</code>. Clicking Publish calls <code>persistDraft()</code> one final time (to flush anything since the last tick), then calls <code>publishPostAction({ postId })</code>.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">2. Server Action — publishPostAction()</div>
+        <p style="margin:0">① <code>auth()</code> reads the session. ② Ownership check — the post's <code>authorId</code> must match. ③ Validates the post has a title and content. ④ Sets <code>status: "PUBLISHED"</code> and <code>publishedAt: new Date()</code>. ⑤ Generates the excerpt from content if none was set manually.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">3. Cache invalidation</div>
+        <p style="margin:0"><code>revalidatePath</code> is called for the new article URL, the author's profile, the home page, and discover — every place the newly-published post now needs to appear with fresh data.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">4. Client response</div>
+        <p style="margin:0">The action returns the post's slug. The client shows a success toast and <code>router.push</code>es to <code>/articles/[slug]</code> — the freshly published, sanitized, syntax-highlighted article, live.</p>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════ AUTH SPLIT ════════════════════════════════ -->
+    <section id="auth-split">
+      <h2>The Auth Split Pattern</h2>
+
+      <p>NextAuth's config has to work in two different runtimes: the <strong>Edge runtime</strong> (middleware) and the <strong>Node.js runtime</strong> (server actions, server components). The problem: <code>bcryptjs</code> and Prisma's adapter both need Node.js APIs the Edge runtime doesn't have.</p>
+
+      <table>
+        <thead><tr><th>File</th><th>Runtime</th><th>Contains</th><th>Used in</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>edge-config.ts</td>
+            <td><span class="badge badge-blue">Edge</span></td>
+            <td>Session/JWT shape, <code>pages</code> config, empty <code>providers: []</code>. No Prisma adapter, no bcrypt.</td>
+            <td><code>server/auth/edge.ts</code> → middleware.ts only</td>
+          </tr>
+          <tr>
+            <td>config.ts</td>
+            <td><span class="badge badge-green">Node.js</span></td>
+            <td>Full config — Prisma adapter, Credentials provider (bcrypt), Google/GitHub OAuth, the <code>jwt()</code> callback that reads the user's <code>Profile</code></td>
+            <td><code>server/auth/index.ts</code> → server actions, server components</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <pre><code><span class="cm">// server/auth/edge.ts</span>
+<span class="kw">import</span> NextAuth <span class="kw">from</span> <span class="str">"next-auth"</span>;
+<span class="kw">import</span> { edgeAuthConfig } <span class="kw">from</span> <span class="str">"@/server/auth/edge-config"</span>;
+<span class="kw">export const</span> { auth } = <span class="fn">NextAuth</span>(edgeAuthConfig);   <span class="cm">// used only by middleware.ts</span>
+
+<span class="cm">// server/auth/index.ts</span>
+<span class="kw">import</span> NextAuth <span class="kw">from</span> <span class="str">"next-auth"</span>;
+<span class="kw">import</span> { authConfig } <span class="kw">from</span> <span class="str">"@/server/auth/config"</span>;
+<span class="kw">export const</span> { handlers, auth, signIn, signOut } = <span class="fn">NextAuth</span>(authConfig);   <span class="cm">// everywhere else</span></code></pre>
+
+      <p>Both configs share the same <code>session()</code> callback shape (copying <code>id</code>/<code>role</code>/<code>username</code> onto <code>session.user</code>) so a session object read in middleware and one read in a server action look identical to calling code — the split is invisible outside these two files.</p>
+    </section>
+
+    <!-- ════════════════════════════════ OPTIMISTIC ════════════════════════════════ -->
+    <section id="optimistic">
+      <h2>Optimistic UI</h2>
+
+      <p>Likes, bookmarks, and follows update the UI immediately, then confirm against the server in the background — with rollback if the action actually fails.</p>
+
+      <pre><code><span class="kw">const</span> [liked, setLiked] = <span class="fn">useState</span>(initialLiked);
+<span class="kw">const</span> [isPending, startTransition] = <span class="fn">useTransition</span>();
+
+<span class="kw">function</span> <span class="fn">handleLike</span>() {
+  <span class="kw">if</span> (!isAuthenticated) { <span class="fn">setShowAuthDialog</span>(<span class="kw">true</span>); <span class="kw">return</span>; }
+
+  <span class="kw">const</span> previous = liked;
+  <span class="fn">setLiked</span>(!liked);              <span class="cm">// 1. flip immediately — no spinner, no wait</span>
+
+  <span class="fn">startTransition</span>(<span class="kw">async</span> () =&gt; {
+    <span class="kw">try</span> {
+      <span class="kw">await</span> <span class="fn">toggleLikeAction</span>({ postId });
+    } <span class="kw">catch</span> {
+      <span class="fn">setLiked</span>(previous);       <span class="cm">// 2. roll back on failure</span>
+      toast.<span class="fn">error</span>(<span class="str">"Something went wrong."</span>);
+    }
+  });
+}</code></pre>
+
+      <p>Unauthenticated users get a centered "Sign in required" dialog instead of the toggle firing at all — a deliberate UX choice over a silently failing click, and over a corner toast easy to miss.</p>
+    </section>
+
+    <!-- ════════════════════════════════ TRANSACTIONS ════════════════════════════════ -->
+    <section id="transactions">
+      <h2>Transactional Mutations</h2>
+
+      <p><code>db.$transaction()</code> wraps every mutation that touches more than one table, so the database is never left in a partial state.</p>
+
+      <table>
+        <thead><tr><th>Action</th><th>What's inside the transaction</th></tr></thead>
+        <tbody>
+          <tr><td>Create comment</td><td>Insert the comment + increment <code>post.commentCount</code> + create a <code>Notification</code></td></tr>
+          <tr><td>Delete comment</td><td>Set <code>isDeleted: true</code> + decrement <code>post.commentCount</code></td></tr>
+          <tr><td>Toggle like</td><td>Create/delete the <code>Reaction</code> + increment/decrement <code>post.likeCount</code> + notification on like only</td></tr>
+          <tr><td>Toggle follow</td><td>Create/delete the <code>Follow</code> row + create a <code>FOLLOW</code> notification</td></tr>
+          <tr><td>Save draft tags</td><td>Diff-add/remove <code>PostTag</code> rows + increment/decrement each <code>Tag.usageCount</code></td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout blue">
+        <strong>Why it matters here specifically:</strong> if incrementing <code>commentCount</code> failed after the comment row itself was already committed (e.g. a crash between the two statements without a transaction), the displayed comment count would silently drift from the real count forever — nothing would ever notice or self-correct. Wrapping both writes in one transaction makes that drift structurally impossible instead of just unlikely.
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════ Q&A — NEXTJS ════════════════════════════════ -->
+    <section id="qa-nextjs">
+      <h2>Interview Q&amp;A — Next.js</h2>
+
+      <div class="qa-block">
+        <div class="qa-q">Why does this project have almost no API routes?</div>
+        <div class="qa-a">
+          Every mutation is a Server Action instead — a function marked <code>"use server"</code> that Next.js turns into an auto-generated endpoint, callable directly from a client component like a normal function. The only two real API routes in the codebase are <code>api/auth/[...nextauth]</code> (NextAuth needs a route handler to receive OAuth callback redirects) and <code>api/uploadthing</code> (UploadThing's client SDK needs an endpoint to negotiate the upload). Everything else — creating a comment, liking a post, banning a user — is a Server Action.
+        </div>
+      </div>
+
+      <div class="qa-block">
+        <div class="qa-q">How does the home page fetch data without an API call?</div>
+        <div class="qa-a">
+          The home page is a Server Component (the default for anything in <code>app/</code> without <code>"use client"</code>). It runs only on the server, so it can <code>await</code> Prisma queries directly in the component body — <code>getFeaturedPosts()</code>, <code>getLatestPosts()</code>, <code>getFeaturedWriters()</code> are called in parallel with <code>Promise.all</code>, and the resulting HTML is what gets sent to the browser. No client-side fetch, no loading spinner for the initial render.
+        </div>
+      </div>
+
+      <div class="qa-block">
+        <div class="qa-q">What does revalidatePath do and why is it needed after every mutation?</div>
+        <div class="qa-a">
+          Next.js caches server component output. After a mutation — publishing a post, adding a comment — the cached version of the affected page would still show stale data on the next visit. <code>revalidatePath("/articles/my-slug")</code> marks that path's cache as stale, so the next request re-runs the server component and re-fetches from the database. Actions here typically call it once, sometimes more than once, when a mutation affects more than one route (e.g. publishing invalidates the article page, the author's profile, and the home page).
+        </div>
+      </div>
+
+      <div class="qa-block">
+        <div class="qa-q">What are route groups and why does this app use two of them?</div>
+        <div class="qa-a">
+          Route groups are folders in parentheses — <code>(auth)</code> and <code>(main)</code> here — that organize files without affecting the URL: <code>(auth)/login/page.tsx</code> still resolves to <code>/login</code>, not <code>/auth/login</code>. This project uses <code>(auth)</code> for login/signup so they can share a minimal layout with no header/footer, and <code>(main)</code> for the public site so home/discover/articles/profiles share the full site chrome — without either group's URL structure implying the grouping exists.
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════ Q&A — AUTH ════════════════════════════════ -->
+    <section id="qa-auth">
+      <h2>Interview Q&amp;A — Authentication</h2>
+
+      <div class="qa-block">
+        <div class="qa-q">Why split the auth config into two files instead of one?</div>
+        <div class="qa-a">
+          Middleware runs in the Edge runtime, a lightweight V8 isolate that doesn't support Node.js built-ins. <code>bcryptjs</code> and Prisma's adapter both require Node.js APIs, so neither can be imported anywhere in the module graph that middleware touches — even transitively. <code>edge-config.ts</code> contains only the JWT/session callback shape and page routes, with an empty <code>providers: []</code>, and is the only auth module middleware imports. <code>config.ts</code> is the full config — Prisma adapter, Credentials provider with bcrypt, OAuth providers — used everywhere else. If bcrypt were imported anywhere in middleware's chain, the build would fail or the Edge function would crash at runtime.
+        </div>
+      </div>
+
+      <div class="qa-block">
+        <div class="qa-q">Why rate-limit inside the authorize() callback specifically?</div>
+        <div class="qa-a">
+          Putting the check inside <code>authorize()</code> means a rate-limited login attempt returns exactly the same result as a wrong password — NextAuth's generic "invalid credentials" failure. If rate-limiting lived as a separate check before <code>signIn()</code> was even called, a distinct error message ("too many attempts") would tell an attacker they'd found a real, existing account being actively targeted — a minor but real information leak avoided by keeping both failure modes indistinguishable to the client.
+        </div>
+      </div>
+
+      <div class="qa-block">
+        <div class="qa-q">Why use JWT sessions instead of database sessions here?</div>
+        <div class="qa-a">
+          JWT sessions store the user's id/role/username in a signed cookie — reading a session on every request is just a signature check, not a database round-trip. Database sessions require a lookup on every request to validate the session id. Given the app already re-verifies authorization inside every sensitive server action (see the Security Q&amp;A), the session's only job is answering "who is this," and a fast, stateless check is the right tool for that.
+        </div>
+      </div>
+
+      <div class="qa-block">
+        <div class="qa-q">How does username end up on session.user without a query on every request?</div>
+        <div class="qa-a">
+          It's added once, at sign-in, inside the <code>jwt()</code> callback — which only runs when the <code>user</code> parameter is present (i.e., on login, not on every token refresh). It looks up the user's <code>Profile.username</code> and stores it on the token. Every subsequent request's <code>session()</code> callback just copies it from the already-signed token onto <code>session.user</code> — no database call happens on ordinary requests, only at the moment of login.
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════ Q&A — DB ════════════════════════════════ -->
+    <section id="qa-db">
+      <h2>Interview Q&amp;A — Database &amp; Prisma</h2>
+
+      <div class="qa-block">
+        <div class="qa-q">Why does Prisma need a singleton in Next.js dev?</div>
+        <div class="qa-a">
+          Next.js dev's Hot Module Replacement re-evaluates a changed module (and everything importing it) on every save. Without a singleton, each re-evaluation would create a brand-new <code>PrismaClient</code> with its own connection pool — and Postgres has a connection limit that a handful of file saves would exhaust. Storing the instance on <code>globalThis</code> works around this because <code>globalThis</code> itself is not re-evaluated by HMR the way module-scoped variables are; the existing instance is found and reused instead of a new one being created. In production, modules are only evaluated once, so the guard is a no-op there.
+        </div>
+      </div>
+
+      <div class="qa-block">
+        <div class="qa-q">How does soft-deleting a comment avoid orphaning its replies?</div>
+        <div class="qa-a">
+          The naive approach — filtering <code>isDeleted: false</code> on every comment query — would make a deleted parent comment vanish from the result set entirely, and since replies are only fetched nested inside their parent's query, any live replies underneath it would become unreachable even though they're still in the database. The fix filters after the fetch instead of in the <code>where</code> clause: a comment is only dropped from the result if it's deleted <em>and</em> none of its replies are still live. Otherwise it stays in the list and the UI renders it as a <code>[deleted]</code> tombstone, with its live replies rendered normally underneath.
+        </div>
+      </div>
+
+      <div class="qa-block">
+        <div class="qa-q">Why is PostTag's primary key a composite of (postId, tagId) instead of its own id column?</div>
+        <div class="qa-a">
+          It's a pure join table — a row's entire meaning is "this post has this tag," which is exactly the uniqueness a composite primary key on <code>(postId, tagId)</code> already enforces at the database level. A separate auto-generated <code>id</code> would add nothing except the possibility of two rows representing the same post-tag pair, which the app would then have to prevent manually. The composite key is also what the tag-sync logic targets directly in its delete calls — <code>where: { postId_tagId: { postId, tagId } }</code> — so it doubles as a natural, efficient lookup key.
+        </div>
+      </div>
+
+      <div class="qa-block">
+        <div class="qa-q">Why wrap the comment-count increment in a transaction with the comment insert?</div>
+        <div class="qa-a">
+          Without a transaction, it's possible for the comment insert to succeed and the count increment to fail (or vice versa, or the process to crash between the two) — leaving <code>post.commentCount</code> permanently out of sync with the actual number of comments, with nothing in the system positioned to ever notice or correct it. <code>db.$transaction(async (tx) => {...})</code> makes both writes atomic: either the comment exists and the count went up, or neither happened. The same pattern is used for like counts, follow counts, and tag usage counts — anywhere a denormalized counter exists alongside the rows it's counting.
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════ Q&A — PATTERNS ════════════════════════════════ -->
+    <section id="qa-patterns">
+      <h2>Interview Q&amp;A — Patterns &amp; Architecture</h2>
+
+      <div class="qa-block">
+        <div class="qa-q">Why is the codebase organized by feature instead of by file type?</div>
+        <div class="qa-a">
+          A type-based layout (one top-level <code>components/</code>, one <code>actions/</code>, one <code>hooks/</code> for the whole app) means every new feature touches several unrelated top-level folders, and finding everything related to, say, comments means searching across all of them. Here, <code>features/comments/</code> owns its own <code>actions/</code>, <code>components/</code>, <code>schemas/</code>, and <code>services/</code> — everything related to one domain lives in one place, and adding a feature means adding a folder, not editing five existing ones. Cross-cutting UI primitives (buttons, dialogs) still live in a shared top-level <code>components/ui/</code>, since those genuinely aren't feature-specific.
+        </div>
+      </div>
+
+      <div class="qa-block">
+        <div class="qa-q">What is useTransition doing in the optimistic-update pattern here?</div>
+        <div class="qa-a">
+          <code>useTransition</code> returns <code>[isPending, startTransition]</code> and marks the wrapped state update as a non-urgent background transition. In the like/bookmark/follow toggles, the visible state flips synchronously and immediately (outside the transition), then the actual server action call is wrapped in <code>startTransition</code> — so the UI never blocks waiting for the network, <code>isPending</code> is available to disable the button against double-clicks, and if the action throws, the catch block flips the state back to what it was before the optimistic update.
+        </div>
+      </div>
+
+      <div class="qa-block">
+        <div class="qa-q">Why does every AI-assist action parse the model's response defensively instead of trusting the prompt's instructions?</div>
+        <div class="qa-a">
+          A system prompt asking for "exactly 5 tags, comma-separated, no commentary" is a strong hint, not a contract — the model can still wrap the answer in a sentence, add a leading dash, or return 4 or 6 items. Every AI action here treats the raw string as untrusted text: splitting, trimming, stripping leading punctuation/numbering, filtering empties, and capping the array length, before ever handing it back to the client. If that cleanup still yields nothing usable, the action throws a clear "try again" error instead of silently returning an empty or malformed result.
+        </div>
+      </div>
+
+      <div class="qa-block">
+        <div class="qa-q">Why diff the tag list on save instead of just deleting and recreating all tags every time?</div>
+        <div class="qa-a">
+          The editor autosaves every ~8 seconds, and a delete-everything/recreate-everything approach would run <code>Tag.usageCount</code> increments and decrements on every single tick regardless of whether the tags actually changed — inflating and then correcting counts constantly, and doing far more database writes than necessary. Diffing against the currently-stored tags first (<code>toAdd</code>/<code>toRemove</code> as set differences) means an autosave where the tags are unchanged does zero tag-related writes at all, and <code>usageCount</code> only moves when a tag genuinely gains or loses this post.
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════ Q&A — SECURITY ════════════════════════════════ -->
+    <section id="qa-security">
+      <h2>Interview Q&amp;A — Security</h2>
+
+      <div class="qa-block">
+        <div class="qa-q">What are the main security measures in this application?</div>
+        <div class="qa-a">
+          <strong>Authentication:</strong> protected routes gated by Edge middleware; every server action independently re-reads the session from the signed JWT cookie rather than trusting anything in the request body.<br/><br/>
+          <strong>Authorization:</strong> every mutating server action checks ownership or role before doing anything — e.g. deleting a comment checks <code>comment.authorId === session.user.id</code>, admin actions check <code>role === "ADMIN"</code>.<br/><br/>
+          <strong>SQL injection:</strong> Prisma parameterizes every query; user input is never interpolated into SQL strings.<br/><br/>
+          <strong>XSS:</strong> editor-produced HTML is run through <code>rehype-sanitize</code> server-side before ever being set via <code>dangerouslySetInnerHTML</code>.<br/><br/>
+          <strong>Password storage:</strong> bcryptjs, 12 rounds, random salt per user.<br/><br/>
+          <strong>Rate limiting:</strong> login (5/15 min per email) and signup (5/hour per IP) both throttled server-side.<br/><br/>
+          <strong>Upload auth:</strong> UploadThing's <code>.middleware()</code> rejects unauthenticated requests before a presigned URL is ever issued — not just a hidden button client-side.
+        </div>
+      </div>
+
+      <div class="qa-block">
+        <div class="qa-q">Why does a server action re-check ownership even though middleware already protects the route?</div>
+        <div class="qa-a">
+          Middleware protects a page's URL — it answers "is this person allowed to load this page at all." It says nothing about which specific resource a subsequent action targets. <code>/new-post/[id]</code> is reachable by any signed-in user; the page itself (and, more importantly, <code>savePostDraftAction</code>/<code>publishPostAction</code>) is what checks that the loaded post's <code>authorId</code> actually matches the current session. Without that second check, any signed-in user could edit or publish anyone else's draft simply by knowing its id — the URL being "protected" wouldn't have stopped that.
+        </div>
+      </div>
+
+      <div class="qa-block">
+        <div class="qa-q">Why is sanitizing the editor's HTML server-side necessary if only the author who wrote it can edit it?</div>
+        <div class="qa-a">
+          Sanitization isn't primarily defending against the author attacking themselves — it's defending every <em>other</em> visitor who loads that article and has that HTML injected into their DOM via <code>dangerouslySetInnerHTML</code>. If a writer's account is compromised, if a future paste-from-clipboard feature lets raw HTML through, or if any client-side code path that produces the stored HTML has a bug, unsanitized output would mean a stored XSS payload served to every single reader of that article — not just the author. Sanitizing on the server, right before rendering, means the trust boundary is enforced in exactly one place regardless of how the HTML was produced.
+        </div>
+      </div>
+
+      <div class="qa-block">
+        <div class="qa-q">Why does rate-limiting live inside authorize() instead of returning a distinguishable error?</div>
+        <div class="qa-a">
+          Returning <code>null</code> from <code>authorize()</code> makes a rate-limited attempt indistinguishable from a wrong password to the client — both produce NextAuth's generic <code>CredentialsSignin</code> failure. If the app instead surfaced "too many attempts, try again in 10 minutes" as a distinct message, an attacker probing a list of emails could use that response to confirm which addresses correspond to real accounts currently being brute-forced, and which don't exist at all. Collapsing both failure modes into one generic message costs a small amount of UX clarity in exchange for not leaking account-enumeration information.
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  // Highlight active nav link on scroll
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('nav a');
+
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        navLinks.forEach(a => a.classList.remove('active'));
+        const active = document.querySelector(`nav a[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { threshold: 0.3 });
+
+  sections.forEach(s => obs.observe(s));
+</script>
+
+</body>
+</html>

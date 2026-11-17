@@ -1,0 +1,605 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =========================================================
+// ENUMS
+// =========================================================
+
+enum Role {
+  GUEST
+  READER
+  WRITER
+  MODERATOR
+  ADMIN
+}
+
+enum PostStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  ARCHIVED
+  SCHEDULED
+}
+
+enum ReactionType {
+  LIKE
+  CLAP
+  LOVE
+  INSIGHTFUL
+  CELEBRATE
+}
+
+enum NotificationType {
+  COMMENT
+  COMMENT_REPLY
+  LIKE
+  FOLLOW
+  MENTION
+  NEWSLETTER
+  POST_PUBLISHED
+  SYSTEM
+}
+
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  MISINFORMATION
+  PLAGIARISM
+  NSFW
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWING
+  RESOLVED
+  DISMISSED
+}
+
+enum ReportTargetType {
+  POST
+  COMMENT
+  USER
+}
+
+enum CollectionType {
+  COLLECTION
+  READING_LIST
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+  FILE
+}
+
+enum SubscriberStatus {
+  PENDING
+  CONFIRMED
+  UNSUBSCRIBED
+}
+
+// =========================================================
+// IDENTITY & AUTH
+// =========================================================
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  role          Role      @default(READER)
+  isBanned      Boolean   @default(false)
+  isSuspended   Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile  Profile?
+  settings UserSettings?
+
+  accounts Account[]
+  sessions Session[]
+
+  posts                  Post[]
+  postVersions           PostVersion[]
+  comments               Comment[]
+  reactions              Reaction[]
+  bookmarks              Bookmark[]
+  collections            Collection[]
+  series                 Series[]
+  media                  Media[]
+  notifications          Notification[] @relation("NotificationRecipient")
+  triggeredNotifications Notification[] @relation("NotificationActor")
+
+  following Follow[] @relation("FollowerRelation")
+  followers Follow[] @relation("FollowingRelation")
+
+  readingHistory         ReadingHistory[]
+  auditLogs              AuditLog[]
+  reportsFiled           Report[]              @relation("ReportsFiled")
+  reportsAgainst         Report[]              @relation("ReportsAgainst")
+  newsletterSubscription NewsletterSubscriber?
+
+  @@index([email])
+  @@map("users")
+}
+
+model Profile {
+  id         String  @id @default(cuid())
+  userId     String  @unique
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  username   String  @unique
+  bio        String?
+  location   String?
+  website    String?
+  twitter    String?
+  github     String?
+  linkedin   String?
+  coverImage String?
+
+  postCount      Int @default(0)
+  followerCount  Int @default(0)
+  followingCount Int @default(0)
+
+  currentStreak Int       @default(0)
+  longestStreak Int       @default(0)
+  lastReadAt    DateTime?
+
+  @@index([username])
+  @@map("profiles")
+}
+
+model UserSettings {
+  id                  String  @id @default(cuid())
+  userId              String  @unique
+  user                User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theme               String  @default("system")
+  emailOnComment      Boolean @default(true)
+  emailOnFollow       Boolean @default(true)
+  emailOnLike         Boolean @default(false)
+  emailWeeklyDigest   Boolean @default(true)
+  emailNewsletter     Boolean @default(true)
+  profileIsPublic     Boolean @default(true)
+  showReadingActivity Boolean @default(true)
+  darkModeSchedule    Boolean @default(false)
+  darkModeStart       String?
+  darkModeEnd         String?
+
+  @@map("user_settings")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expires      DateTime
+  userAgent    String?
+  ipAddress    String?
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// =========================================================
+// CONTENT
+// =========================================================
+
+model Post {
+  id                 String     @id @default(cuid())
+  title              String
+  slug               String     @unique
+  subtitle           String?
+  content            String     @db.Text
+  contentJson        Json?
+  excerpt            String?
+  coverImage         String?
+  status             PostStatus @default(DRAFT)
+  readingTimeMinutes Int        @default(1)
+  wordCount          Int        @default(0)
+
+  metaTitle       String?
+  metaDescription String?
+  canonicalUrl    String?
+
+  isFeatured  Boolean   @default(false)
+  publishedAt DateTime?
+  scheduledAt DateTime?
+
+  viewCount     Int @default(0)
+  likeCount     Int @default(0)
+  commentCount  Int @default(0)
+  bookmarkCount Int @default(0)
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  seriesId    String?
+  series      Series? @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  seriesOrder Int?
+
+  categories      PostCategory[]
+  tags            PostTag[]
+  comments        Comment[]
+  reactions       Reaction[]
+  bookmarks       Bookmark[]
+  versions        PostVersion[]
+  collectionItems CollectionItem[]
+  readingHistory  ReadingHistory[]
+  media           Media[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([authorId])
+  @@index([status, publishedAt])
+  @@index([slug])
+  @@map("posts")
+}
+
+/// Snapshot of a post's content at a point in time, powering version history / autosave.
+model PostVersion {
+  id            String   @id @default(cuid())
+  postId        String
+  post          Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId      String
+  author        User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  title         String
+  content       String   @db.Text
+  contentJson   Json?
+  versionNumber Int
+  createdAt     DateTime @default(now())
+
+  @@unique([postId, versionNumber])
+  @@map("post_versions")
+}
+
+model Category {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  slug        String  @unique
+  description String?
+  icon        String?
+  color       String?
+
+  posts PostCategory[]
+
+  @@map("categories")
+}
+
+model PostCategory {
+  postId     String
+  post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([postId, categoryId])
+  @@map("post_categories")
+}
+
+model Tag {
+  id         String @id @default(cuid())
+  name       String @unique
+  slug       String @unique
+  usageCount Int    @default(0)
+
+  posts PostTag[]
+
+  @@map("tags")
+}
+
+model PostTag {
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tagId  String
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+  @@map("post_tags")
+}
+
+model Series {
+  id          String  @id @default(cuid())
+  title       String
+  slug        String  @unique
+  description String?
+  coverImage  String?
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  posts Post[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("series")
+}
+
+// =========================================================
+// ENGAGEMENT
+// =========================================================
+
+model Comment {
+  id       String @id @default(cuid())
+  content  String @db.Text
+  postId   String
+  post     Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  /// Self-relation: replies to a comment share this model (Comment Replies).
+  parentId String?
+  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  Comment[] @relation("CommentReplies")
+
+  likeCount Int     @default(0)
+  isEdited  Boolean @default(false)
+  isDeleted Boolean @default(false)
+
+  reactions Reaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([postId])
+  @@index([parentId])
+  @@map("comments")
+}
+
+model Reaction {
+  id     String       @id @default(cuid())
+  type   ReactionType @default(LIKE)
+  userId String
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  postId    String?
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  commentId String?
+  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@unique([userId, commentId])
+  @@index([postId])
+  @@index([commentId])
+  @@map("reactions")
+}
+
+model Bookmark {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  collectionItems CollectionItem[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@map("bookmarks")
+}
+
+/// Unifies "Reading Lists" and "Collections" behind one model distinguished by `type`,
+/// avoiding two near-identical tables for what is structurally the same entity.
+model Collection {
+  id          String         @id @default(cuid())
+  name        String
+  slug        String
+  description String?
+  type        CollectionType @default(COLLECTION)
+  isPrivate   Boolean        @default(false)
+  coverImage  String?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items CollectionItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, slug])
+  @@map("collections")
+}
+
+model CollectionItem {
+  id           String     @id @default(cuid())
+  collectionId String
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  postId       String
+  post         Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  bookmarkId   String?
+  bookmark     Bookmark?  @relation(fields: [bookmarkId], references: [id], onDelete: SetNull)
+  addedAt      DateTime   @default(now())
+
+  @@unique([collectionId, postId])
+  @@map("collection_items")
+}
+
+model Follow {
+  id          String @id @default(cuid())
+  followerId  String
+  follower    User   @relation("FollowerRelation", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String
+  following   User   @relation("FollowingRelation", fields: [followingId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([followerId, followingId])
+  @@index([followingId])
+  @@map("follows")
+}
+
+model ReadingHistory {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId   String
+  post     Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  progress Float    @default(0)
+  readAt   DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@map("reading_history")
+}
+
+// =========================================================
+// NOTIFICATIONS & COMMUNICATION
+// =========================================================
+
+model Notification {
+  id      String           @id @default(cuid())
+  type    NotificationType
+  message String
+  link    String?
+  isRead  Boolean          @default(false)
+
+  recipientId String
+  recipient   User    @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actorId     String?
+  actor       User?   @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([recipientId, isRead])
+  @@map("notifications")
+}
+
+model NewsletterSubscriber {
+  id     String           @id @default(cuid())
+  email  String           @unique
+  status SubscriberStatus @default(PENDING)
+  userId String?          @unique
+  user   User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  token  String           @unique @default(cuid())
+
+  subscribedAt   DateTime  @default(now())
+  unsubscribedAt DateTime?
+
+  @@map("newsletter_subscribers")
+}
+
+// =========================================================
+// MEDIA
+// =========================================================
+
+model Media {
+  id        String    @id @default(cuid())
+  url       String
+  type      MediaType @default(IMAGE)
+  altText   String?
+  width     Int?
+  height    Int?
+  sizeBytes Int?
+
+  uploaderId String
+  uploader   User   @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  postId String?
+  post   Post?   @relation(fields: [postId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@map("media")
+}
+
+// =========================================================
+// MODERATION & PLATFORM
+// =========================================================
+
+model Report {
+  id     String       @id @default(cuid())
+  reason ReportReason
+  detail String?
+  status ReportStatus @default(PENDING)
+
+  targetType ReportTargetType
+  targetId   String
+
+  reporterId String
+  reporter   User   @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  reportedUserId String?
+  reportedUser   User?   @relation("ReportsAgainst", fields: [reportedUserId], references: [id], onDelete: SetNull)
+
+  resolvedAt     DateTime?
+  resolutionNote String?
+
+  createdAt DateTime @default(now())
+
+  @@index([status])
+  @@index([targetType, targetId])
+  @@map("reports")
+}
+
+model AuditLog {
+  id         String  @id @default(cuid())
+  actorId    String?
+  actor      User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  targetType String?
+  targetId   String?
+  metadata   Json?
+  ipAddress  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@map("audit_logs")
+}
+
+model SiteSettings {
+  id                 String  @id @default(cuid())
+  siteName           String  @default("Blogging Platform")
+  siteDescription    String?
+  logoUrl            String?
+  faviconUrl         String?
+  allowSignups       Boolean @default(true)
+  requireEmailVerify Boolean @default(true)
+  maintenanceMode    Boolean @default(false)
+
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
+}
