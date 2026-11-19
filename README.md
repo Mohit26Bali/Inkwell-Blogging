@@ -184,9 +184,8 @@ e.g. `ada@inkwell.dev`) with password `Password123`.
 
 Personal/portfolio project — not currently licensed for reuse.
 
----
+## Setup notes
 
-## Project status (added by audit, 2026-11)
-
-Hardened, tested (60 integration tests) and live-verified against the production build. Setup: see [How to run.md](How%20to%20run.md). Architecture, fixes and known remaining items: see [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md). Install with 
-pm install --legacy-peer-deps.
+- Install with `npm install --legacy-peer-deps`.
+- Apply the database schema with `npx prisma migrate deploy` before the first run.
+- Optional settings (e-mail, proxies, seed password) are documented in `.env.example`.
